@@ -57,65 +57,15 @@ def harris_corner_detector(img, colimg, k=0.04, window_size=3, threshold=0.0025)
 
     return R
 
-
-def NCC(img1, img2, window_size=5):
-    p = int((window_size - 1) / 2)
-    img1_cp = img1.copy()
-    img1 = np.pad(img1, p, "constant", constant_values=0)
-    ncc = np.zeros((img1.shape[0], img1.shape[1]))
-    img1_hat = img1 / np.linalg.norm(img1)
-    img2_hat = img2 / np.linalg.norm(img2)
-
-    # print(img1_cp.shape)
-    # print(img1_hat.shape)
-    # print(img2_hat.shape)
-
-    for i in range(img1.shape[0]):
-        for j in range(img1.shape[1]):
-            if (i == 0 + p or i == img1_cp.shape[0] - 1) and (
-                j == 0 + p or j == img1_cp.shape[1] - 1
-            ):
-                p1 = img1_hat[i - p : i + p + 1, j - p : j + p + 1]
-                prod = np.mean((p1 - np.mean(p1)) * (img2_hat - np.mean(img2_hat)))
-                std_div = np.std(img1_hat) * np.std(img2_hat)
-                if std_div == 0:
-                    ncc[i, j] = np.NaN
-                else:
-                    ncc[i, j] = prod / std_div
-            else:
-                ncc[i, j] = -np.infty
-    return ncc
-
-
-def NCC2(w, g, pad):
-    w_pad = np.pad(w, pad, "constant", constant_values=0)
-
-    g_hat = g / np.linalg.norm(g)
-    w_hat = w_pad / np.linalg.norm(w_pad)
-
-    ncc = np.zeros((w_pad.shape[0], w_pad.shape[1]))
-    return convolve2d(w_hat, g_hat, mode="full")
-
-    for i in range(w_pad.shape[0]):
-        for j in range(w_pad.shape[1]):
-            if (i == pad or i == w.shape[0] - 1) and (j == pad or j == w.shape[1] - 1):
-                w1 = w_hat[i - pad : i + pad + 1, j - pad : j + pad + 1]
-                prod = np.mean((w1 - np.mean(w1)) * (g_hat - np.mean(g_hat)))
-                std_div = np.std(w_hat) * np.std(g_hat)
-                if std_div == 0:
-                    ncc[i, j] = np.NaN
-                else:
-                    ncc[i, j] = prod / std_div
-            else:
-                ncc[i, j] = -np.infty
-    return ncc
-
-def NCC3(f, g):
+def NCC(f, g):
     f_hat = f / np.linalg.norm(f)
     g_hat = g / np.linalg.norm(g)
 
     ncc = np.sum(f_hat * g_hat)
     return ncc
+
+def RANSAC(points):
+    return
 
 def show(col, gray):
     for i in range(len(col)):
@@ -184,19 +134,19 @@ def main():
                 y1 : y2,
             ]
             # Calculate NCC using image patches
-            ncc = NCC3(patch1, patch2)
+            ncc = NCC(patch1, patch2)
             # If this NCC is the new max, store it and the coords of the corner
             if ncc > maxNCC:
                 maxNCC = ncc
                 coords = corner2[0], corner2[1]
 
         # Break earlier for testing
-        if i > 100:
+        if i > 50:
             break
 
         # Threshold
-        if maxNCC < 0.9995:
-            continue
+        # if maxNCC < 0.9995:
+        #     continue
 
         # Store corner pair with highest NCC
         corners[(corner1[0], corner1[1])] = coords
@@ -220,6 +170,7 @@ def main():
         cv2.line(vis, start, end, (b, g, r), 1)
     
     show([vis], [vis])
+    print(corners)
 
 if __name__ == "__main__":
     main()
