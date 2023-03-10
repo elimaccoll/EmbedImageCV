@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from scipy.signal import convolve2d
 import os
 import cv2
+from random import randint
 
 
 # Load the images
@@ -109,6 +110,12 @@ def NCC2(w, g, pad):
                 ncc[i, j] = -np.infty
     return ncc
 
+def NCC3(f, g):
+    f_hat = f / np.linalg.norm(f)
+    g_hat = g / np.linalg.norm(g)
+
+    ncc = np.sum(f_hat * g_hat)
+    return ncc
 
 def show(col, gray):
     for i in range(len(col)):
@@ -135,30 +142,84 @@ def main():
     corner1 = np.where(R1 == 255)
     corner2 = np.where(R2 == 255)
 
+    # List of coordinates of corners
     c1coords = list(zip(corner1[0], corner1[1]))
     c2coords = list(zip(corner2[0], corner2[1]))
 
+    # Window size and padding for NCC
     window_size = 5
     pad = int((window_size - 1) / 2)
 
-    g_pad = np.pad(gray[1], pad, "constant", constant_values=0)
+    # Pad gray images
+    g1_pad = np.pad(gray[0], pad, "constant", constant_values=0)
+    g2_pad = np.pad(gray[1], pad, "constant", constant_values=0)
 
-    for i, corner in enumerate(c2coords):
-        f = g_pad[
-            corner[0] + pad - 2 : corner[0] + pad + 3,
-            corner[1] + pad - 2 : corner[1] + pad + 3,
+    # Perform NCC
+    # - Compare every corner detected in image 1 with every corner detected in image 2
+    # - Store the pairs of corners with the highest correlation value
+    corners = {}
+    for i, corner1 in enumerate(c1coords):
+        # Image patch around corner 1
+        x1 = max(corner1[0] - pad, 0)
+        x2 = max(corner1[0] + pad + 1, window_size)
+        y1 = max(corner1[1] - pad, 0)
+        y2 = max(corner1[1] + pad + 1, window_size)
+        patch1 = g1_pad[
+            x1 : x2,
+            y1 : y2,
         ]
-        res = NCC2(gray[0], f, pad)
-        maxVal = np.nanmax(res)
-        maxLoc = np.where(res == maxVal)
-        maxLoc = np.array(list(zip(maxLoc[0], maxLoc[1])))
 
-        col[0][maxLoc[0][0], maxLoc[0][1]] = [0, 0, 255]
-        col[1][corner[0], corner[1]] = [0, 0, 255]
-        print(f"{i}/{len(c2coords)}", maxLoc[0][0], maxLoc[0][1], end="\r")
+        maxNCC = -1
+        coords = None
+        for j, corner2 in enumerate(c2coords):
+            print(f"i={i}/{len(c1coords)} j={j}/{len(c2coords)}", end="\r")
 
-    show([col[0]], [col[1]])
+            # Image patch around corner 2
+            x1 = max(corner2[0] - pad, 0)
+            x2 = max(corner2[0] + pad + 1, window_size)
+            y1 = max(corner2[1] - pad, 0)
+            y2 = max(corner2[1] + pad + 1, window_size)
+            patch2 = g2_pad[
+                x1 : x2,
+                y1 : y2,
+            ]
+            # Calculate NCC using image patches
+            ncc = NCC3(patch1, patch2)
+            # If this NCC is the new max, store it and the coords of the corner
+            if ncc > maxNCC:
+                maxNCC = ncc
+                coords = corner2[0], corner2[1]
 
+        # Break earlier for testing
+        if i > 100:
+            break
+
+        # Threshold
+        if maxNCC < 0.9995:
+            continue
+
+        # Store corner pair with highest NCC
+        corners[(corner1[0], corner1[1])] = coords
+        # Color the corners in the images
+        col[0][corner1[0], corner1[1]] = [0, 0, 255]
+        col[1][coords[0], coords[1]] = [0, 0, 255]
+
+    # Concatenate the two images
+    vis = np.concatenate((col[0], col[1]), axis=1)
+
+    # Draw lines between correlated corners
+    for key, value in corners.items():
+        r = randint(0, 255)
+        g = randint(0, 255)
+        b = randint(0, 255)
+        start_y, start_x = key
+        end_y, end_x = value
+        end_x = int(end_x + vis.shape[1]/2)
+        end = (end_x, end_y)
+        start = (start_x, start_y)
+        cv2.line(vis, start, end, (b, g, r), 1)
+    
+    show([vis], [vis])
 
 if __name__ == "__main__":
     main()
