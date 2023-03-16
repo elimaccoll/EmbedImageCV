@@ -14,7 +14,7 @@ class Panorama:
             self.ncc_thresh = 0.9995
         elif path == "DanaOffice":
             self.harris_thresh = 0.01
-            self.ncc_thresh = 0.95
+            self.ncc_thresh = 0.9995 # 0.95
         return
 
     def load_images(self, path: str) -> np.ndarray:
@@ -292,6 +292,16 @@ class Panorama:
         if cv2.waitKey(0) & 0xFF == ord("q"):
             cv2.destroyAllWindows()
 
+    def save_image(self, images: list, fnames: list) -> None:
+        """Saves a list of images with their corresponding filename
+
+        Args:
+            images (list): A list of all images to be saved
+            fnames (list): A list of all the file names of the images
+        """
+        for image, fname in zip(images, fnames):
+            cv2.imwrite(f"results/{fname}.jpg", image)
+
 
 
 def main():
@@ -328,7 +338,11 @@ def main():
     correspondences_vis = pano.drawLines(image1, image2, correspondences)
     inliers_vis = pano.drawLines(image1, image2, inliers)
     outliers_vis = pano.drawLines(image1, image2, outliers)
+    
     pano.show_image([image1, image2, corners1_vis, corners2_vis, correspondences_vis, inliers_vis, outliers_vis, output], ["Input 1", "Input 2", "corners1", "corners2", "correspondences", "inliers", "outliers", "Output"])
+
+    # Save results
+    pano.save_image([image1, image2, corners1_vis, corners2_vis, correspondences_vis, inliers_vis, outliers_vis, output], [f"{DIR}_input1", f"{DIR}_input2", f"{DIR}_corners1", f"{DIR}_corners2", f"{DIR}_correspondences", f"{DIR}_inliers", f"{DIR}_outliers", f"{DIR}_output"])
 
 if __name__ == "__main__":
     main()
