@@ -14,7 +14,7 @@ class Panorama:
             self.ncc_thresh = 0.9995
         elif path == "DanaOffice":
             self.harris_thresh = 0.01
-            self.ncc_thresh = 0.9995 # 0.95
+            self.ncc_thresh = 0.9995  # 0.95
         return
 
     def load_images(self, path: str) -> np.ndarray:
@@ -37,10 +37,7 @@ class Panorama:
         )
 
     def harris_corner_detector(
-        self,
-        image: np.ndarray,
-        k: float = 0.04,
-        window_size: int = 3
+        self, image: np.ndarray, k: float = 0.04, window_size: int = 3
     ) -> np.ndarray:
         """Given an image, it finds the corners using the Harris Corner Detector.
 
@@ -93,7 +90,7 @@ class Panorama:
         image2: np.ndarray,
         corners1: list,
         corners2: list,
-        window_size: int = 5
+        window_size: int = 5,
     ) -> dict:
         """Given two images and their corners, it computes the normalized cross correlation between the two images and returns the correspondences.
 
@@ -121,8 +118,8 @@ class Panorama:
             y1 = max(corner1[1] - pad, 0)
             y2 = max(corner1[1] + pad + 1, window_size)
             patch1 = image1_pad[
-                x1 : x2,
-                y1 : y2,
+                x1:x2,
+                y1:y2,
             ]
 
             max_ncc = -1
@@ -136,8 +133,8 @@ class Panorama:
                 y1 = max(corner2[1] - pad, 0)
                 y2 = max(corner2[1] + pad + 1, window_size)
                 patch2 = image2_pad[
-                    x1 : x2,
-                    y1 : y2,
+                    x1:x2,
+                    y1:y2,
                 ]
                 # Calculate NCC using image patches
                 patch1_hat = patch1 / np.linalg.norm(patch1)
@@ -156,6 +153,27 @@ class Panorama:
                 # Store correspondence with highest NCC
                 correspondences[corner1] = best_corner
         return correspondences
+
+    def homography(self, points1: np.ndarray, points2: np.ndarray) -> np.ndarray:
+        """Given two sets of points, it computes the homography matrix.
+
+        Args:
+            points1 (np.ndarray): Points in the form [[x1, y1], [x2, y2], ...] of shape (4 x 2).
+            points2 (np.ndarray): Points in the form [[x1, y1], [x2, y2], ...] of shape (4 x 2).
+
+        Returns:
+            h_mat (np.ndarray): Homography matrix of shape (3 x 3).
+        """
+        H = np.zeros((points1.shape[0] * 2, 9))
+        for i, ((x1, y1), (x2, y2)) in enumerate(zip(points1, points2)):
+            # print(f"{i}, (({x1}, {y1}), ({x2}, {y2}))")
+            H[2 * i] = [x1, y1, 1, 0, 0, 0, -x2 * x1, -x2 * y1, -x2]
+            H[2 * i + 1] = [0, 0, 0, x1, y1, 1, -y2 * x1, -y2 * y1, -y2]
+        _, _, V = np.linalg.svd(H.T @ H)
+        h = V[-1]
+        h_mat = h.reshape(3, 3)
+        h_mat = h_mat / h_mat[2, 2]
+        return h_mat
 
     def ransac(
         self, correspondences: dict, threshold: int = 5, k: int = 100, N: int = 4
@@ -190,15 +208,15 @@ class Panorama:
             points2 = [tuple(correspondences.get(p)) for p in points1]
 
             # Compute homography matrix using these points
-            h, status = cv2.findHomography(np.asarray(points1), np.asarray(points2))
-            
+            h = self.homography(np.asarray(points1), np.asarray(points2))
+
             for corner1, corner2 in correspondences.items():
                 # Estimate point using homography
                 pt1 = np.array([corner1[0], corner1[1], 1])
                 pt2 = np.array([corner2[0], corner2[1], 1])
                 res = np.dot(h, pt1)
                 # res = np.matmul(h, pt1)
-                res = (res[:2]/res[2]).astype(int)
+                res = (res[:2] / res[2]).astype(int)
                 dist = np.linalg.norm(res - corner2)
 
                 # Check if outlier
@@ -240,7 +258,9 @@ class Panorama:
         _, final = stitcher.stitch((copy1, copy2))
         return final
 
-    def drawLines(self, image1: np.ndarray, image2: np.ndarray, points: dict, col1: tuple = None) -> None:
+    def drawLines(
+        self, image1: np.ndarray, image2: np.ndarray, points: dict, col1: tuple = None
+    ) -> None:
         """Draws lines between the points in the two images.
 
         Args:
@@ -258,13 +278,13 @@ class Panorama:
             col = col1 if col1 else (randint(0, 255), randint(0, 255), randint(0, 255))
             start_y, start_x = pt1
             end_y, end_x = pt2
-            end_x = int(end_x + vis.shape[1]/2)
+            end_x = int(end_x + vis.shape[1] / 2)
             end = (end_x, end_y)
             start = (start_x, start_y)
             cv2.line(vis, start, end, col, 1)
 
         return vis
-    
+
     def drawCorners(self, image: np.ndarray, corners: list) -> None:
         """Draw corners in the image.
 
@@ -303,13 +323,12 @@ class Panorama:
             cv2.imwrite(f"results/{fname}.jpg", image)
 
 
-
 def main():
     # DIR = "DanaHallWay1"
     DIR = "DanaOffice"
 
     pano = Panorama(DIR)
-    
+
     # Load images
     col, gray = pano.load_images(DIR)
     image1, image2 = col[0], col[1]
@@ -324,7 +343,9 @@ def main():
     # corners2 = choices(corners2, k=samples)
 
     # Find correspondences using NCC
-    correspondences = pano.normalized_cross_correlation(gray1, gray2, corners1, corners2)
+    correspondences = pano.normalized_cross_correlation(
+        gray1, gray2, corners1, corners2
+    )
 
     # Use RANSAC to estimate homography matrix and find inliers
     H, inliers, outliers = pano.ransac(correspondences)
@@ -338,11 +359,54 @@ def main():
     correspondences_vis = pano.drawLines(image1, image2, correspondences)
     inliers_vis = pano.drawLines(image1, image2, inliers)
     outliers_vis = pano.drawLines(image1, image2, outliers)
-    
-    pano.show_image([image1, image2, corners1_vis, corners2_vis, correspondences_vis, inliers_vis, outliers_vis, output], ["Input 1", "Input 2", "corners1", "corners2", "correspondences", "inliers", "outliers", "Output"])
+
+    pano.show_image(
+        [
+            image1,
+            image2,
+            corners1_vis,
+            corners2_vis,
+            correspondences_vis,
+            inliers_vis,
+            outliers_vis,
+            output,
+        ],
+        [
+            "Input 1",
+            "Input 2",
+            "corners1",
+            "corners2",
+            "correspondences",
+            "inliers",
+            "outliers",
+            "Output",
+        ],
+    )
 
     # Save results
-    pano.save_image([image1, image2, corners1_vis, corners2_vis, correspondences_vis, inliers_vis, outliers_vis, output], [f"{DIR}_input1", f"{DIR}_input2", f"{DIR}_corners1", f"{DIR}_corners2", f"{DIR}_correspondences", f"{DIR}_inliers", f"{DIR}_outliers", f"{DIR}_output"])
+    pano.save_image(
+        [
+            image1,
+            image2,
+            corners1_vis,
+            corners2_vis,
+            correspondences_vis,
+            inliers_vis,
+            outliers_vis,
+            output,
+        ],
+        [
+            f"{DIR}_input1",
+            f"{DIR}_input2",
+            f"{DIR}_corners1",
+            f"{DIR}_corners2",
+            f"{DIR}_correspondences",
+            f"{DIR}_inliers",
+            f"{DIR}_outliers",
+            f"{DIR}_output",
+        ],
+    )
+
 
 if __name__ == "__main__":
     main()
