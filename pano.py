@@ -28,7 +28,7 @@ class Panorama:
         files = [
             os.path.join(path, f)
             for f in sorted(os.listdir(path))
-            if f.endswith(".JPG")
+            # if f.endswith(".JPG")
         ]
         return np.array([cv2.imread(f) for f in files]), np.array(
             [cv2.imread(f, 0) for f in files]
@@ -288,6 +288,97 @@ class Panorama:
         _, final = stitcher.stitch((copy1, copy2))
         return final
 
+    def embed_image(self, embed_image: np.ndarray, base_image: np.ndarray):
+        """Embeds an image into a given base image.
+
+        Args:
+            embed_image (np.ndarray): The image being embedded in the base image.
+            base_image (np.ndarray): The base image being embedded into.
+        Returns:
+            composite_image (np.ndarray): The resulting composite image containing the embed.
+        """
+        # Create a copy of the base image
+        base_image = base_image.copy()
+
+        # Get the desired region to embed image on reom mouse events.
+        region = self.get_user_region(base_image)
+        region = np.asarray(region)
+
+        base_width, base_height, _ = base_image.shape
+        embed_width, embed_height, _ = embed_image.shape
+
+        # Clockwise starting from top left corner
+        embed_image_corners = np.array([(0, 0), (embed_width, 0), (embed_width, embed_height), (0, embed_height)])
+        
+        # Calculate homography matrix
+        H = self.homography(embed_image_corners, region)
+
+        # Warp the image into the user selected region using the homography matrix
+        embed_image_isolated = cv2.warpPerspective(embed_image, H, (base_height, base_width))
+
+        # Create a mask of the user selected region
+        fill_mask = np.zeros(base_image.shape).astype("uint8")
+        cv2.fillConvexPoly(fill_mask, region, (255, 255, 255))
+
+        # Apply mask of user selected region to the base image
+        base_image_with_region = cv2.bitwise_and(base_image, cv2.bitwise_not(fill_mask))
+
+        # Add the base image and the isolated embed image
+        composite_image = base_image_with_region + embed_image_isolated
+        
+        return composite_image
+
+    def mouse_callback(self, event: int, x: int, y: int, flags: int, param: dict):
+        """Callback function for mouse events used when obtaining the user selected region for embedding an image.
+
+        Args:
+            event (int): The type of mouse click event.
+            x (int): The x pixel coordinate of the mouse in base image.
+            y (int): The y pixel coordinate of the mouse in base image.
+            flags (int): Event flags.
+            param (dict): Any parameters that are passed in.
+        """
+
+        # Handle when the mouse is clicked
+        if event == cv2.EVENT_LBUTTONDOWN:
+            # Get image and corners by reference\
+            base_image = param["image"]
+            corners = param["corners"]
+            corners.append([x, y])
+            # Draw square centered around click
+            p = 5
+            start_point = (x - p, y - p) # Top left corner
+            end_point = (x + p, y + p) # Bottom right corner
+            color = (0, 0, 255)
+            thickness = 2
+            cv2.rectangle(base_image, start_point, end_point, color, thickness)
+
+    def get_user_region(self, base_image: np.ndarray):
+        """Get the corners of the region to embed the image into from the user using mouse click on the base image.
+
+        Args:
+            base_image (np.ndarray): The base image being embedded onto.
+        Returns:
+            corners (list): the pixel coordinates of the corners of the user selected region in the form [(x, y)]
+        """
+        corners = []
+        param = {
+            "image": base_image,
+            "corners": corners,
+        }
+
+        window_name = "Embed Image"
+        cv2.imshow(window_name, base_image)
+        cv2.setMouseCallback(window_name, self.mouse_callback, param)
+
+        while True:
+            cv2.imshow(window_name, base_image)
+            if cv2.waitKey(1) & 0xFF == ord("q") or len(corners) == 4:
+                cv2.destroyWindow(window_name)
+                break
+
+        return corners
+
     def draw_lines(
         self, image1: np.ndarray, image2: np.ndarray, points: dict, col1: tuple = None
     ) -> None:
@@ -353,10 +444,11 @@ class Panorama:
             cv2.imwrite(f"results/{fname}.jpg", image)
 
 
+
 def main():
+    # The directory to use two images from to create a mosaic
     DIR = "DanaHallWay1"
     # DIR = "DanaOffice"
-
     pano = Panorama(DIR)
 
     # Load images
@@ -367,10 +459,6 @@ def main():
     # Apply Harris corner detector
     corners1 = pano.harris_corner_detector(gray1)
     corners2 = pano.harris_corner_detector(gray2)
-
-    # samples = 600
-    # corners1 = choices(corners1, k=samples)
-    # corners2 = choices(corners2, k=samples)
 
     # Find correspondences using NCC
     correspondences = pano.normalized_cross_correlation(
@@ -383,12 +471,14 @@ def main():
     # Warp images
     output = pano.create_panorama(image1, image2, H)
 
-    # Display results
+    # Create visualiations of results
     corners1_vis = pano.draw_corners(image1, corners1)
     corners2_vis = pano.draw_corners(image2, corners2)
     correspondences_vis = pano.draw_lines(image1, image2, correspondences)
     inliers_vis = pano.draw_lines(image1, image2, inliers)
     outliers_vis = pano.draw_lines(image1, image2, outliers)
+
+    # Display results
     print(H)
     pano.show_image(
         [
@@ -438,5 +528,29 @@ def main():
     )
 
 
+def extra_credit():
+    # The directory to pull an image from to use as the base image
+    DIR = "DanaHallWay1"
+    # DIR = "DanaOffice"
+
+    pano = Panorama(DIR)
+
+    # Load images
+    col, _ = pano.load_images(DIR)
+    embed_images, _ = pano.load_images("ec")
+
+    embed_image = embed_images[0]
+    base_image = col[0]
+
+    # Warp an image into a region in the second image
+    output = pano.embed_image(embed_image, base_image)
+
+    # Display results
+    pano.show_image([output], ["ExtraCredit_output"])
+
+    # Save Results
+    pano.save_image([output], ["ExtraCredit_output"])
+
 if __name__ == "__main__":
     main()
+    extra_credit()
