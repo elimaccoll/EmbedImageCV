@@ -11,10 +11,8 @@ class Panorama:
     def __init__(self, path):
         if path == "DanaHallWay1":
             self.harris_thresh = 0.0025
-            self.ncc_thresh = 0.9995
         elif path == "DanaOffice":
             self.harris_thresh = 0.01
-            self.ncc_thresh = 0.9995  # 0.95
         return
 
     def load_images(self, path: str) -> np.ndarray:
@@ -35,6 +33,42 @@ class Panorama:
         return np.array([cv2.imread(f) for f in files]), np.array(
             [cv2.imread(f, 0) for f in files]
         )
+
+    def non_maximum_suppresion(self, image: np.ndarray, window_size: int = 5):
+        """Apply non-maximum suppression to a given image
+
+        Args:
+            image (np.ndarray): Image to perform non-max suppression on the.
+            window_size (int, optional): The window size around each pixel.
+        Returns:
+            suppressed (np.ndarray): Resulting image after non-maximum suppression.
+        """    
+        suppressed = image.copy()
+        global_min = image.min()
+        p = window_size // 2
+
+        width, height = suppressed.shape
+
+        
+        for i in range(width):
+            x1 = max(0, i - p)
+            x2 = min(width, i + p)
+            for j in range(height):
+                # Bounds for window around pixel at (i, j)
+                y1 = max(0, j - p)
+                y2 = min(height, j + p)
+                
+                # Set pixel value to the global min to exclude it from max
+                value = suppressed[i, j]
+                suppressed[i, j] = global_min
+
+                # If pixel has the maximum value in the window then use its value
+                local_max = suppressed[x1:x2, y1:y2].max()
+                if value > local_max:
+                    suppressed[i, j] = value
+                    
+                # Else keep it is global minimum
+        return suppressed
 
     def harris_corner_detector(
         self, image: np.ndarray, k: float = 0.04, window_size: int = 3
@@ -74,11 +108,11 @@ class Panorama:
         # Normalize
         R /= R.max()
 
+        # Non-max suppression
+        R = self.non_maximum_suppresion(R)
+
         # Thresholding
         R[R > self.harris_thresh] = 255
-
-        # Non Max Suppression
-        R[R <= self.harris_thresh] = 0
 
         corners = np.where(R == 255)
         corners = list(zip(corners[0], corners[1]))
@@ -146,10 +180,6 @@ class Panorama:
                     max_ncc = ncc
                     best_corner = corner2
 
-                # Threshold
-                if max_ncc < self.ncc_thresh:
-                    continue
-
                 # Store correspondence with highest NCC
                 correspondences[corner1] = best_corner
         return correspondences
@@ -176,14 +206,14 @@ class Panorama:
         return h_mat
 
     def ransac(
-        self, correspondences: dict, threshold: int = 5, k: int = 100, N: int = 4
+        self, correspondences: dict, threshold: int = 5, k: int = 72, N: int = 4
     ) -> np.ndarray:
         """Performs RANSAC to find the best homography matrix, given the correspondences. This is done using the largest set of inliers.
 
         Args:
             correspondences (dict): Correspondences between the two images in the form {corner1 (x, y): corner2 (x, y)}
             threshold (int, optional): The distance threshold. Defaults to 5.
-            k (int, optional): No of iterations. Defaults to 100.
+            k (int, optional): No of iterations. Defaults to 72.
             N (int, optional): Sample size. Defaults to 4.
 
         Returns:
@@ -258,7 +288,7 @@ class Panorama:
         _, final = stitcher.stitch((copy1, copy2))
         return final
 
-    def drawLines(
+    def draw_lines(
         self, image1: np.ndarray, image2: np.ndarray, points: dict, col1: tuple = None
     ) -> None:
         """Draws lines between the points in the two images.
@@ -285,7 +315,7 @@ class Panorama:
 
         return vis
 
-    def drawCorners(self, image: np.ndarray, corners: list) -> None:
+    def draw_corners(self, image: np.ndarray, corners: list) -> None:
         """Draw corners in the image.
 
         Args:
@@ -297,7 +327,7 @@ class Panorama:
         vis = image.copy()
         # Draw lines between correlated corners
         for corner in corners:
-            cv2.circle(vis, (corner[1], corner[0]), 1, (255, 0, 0), 1)
+            cv2.circle(vis, (corner[1], corner[0]), 3, (0, 0, 255), 1)
         return vis
 
     def show_image(self, images: list, titles: list) -> None:
@@ -324,8 +354,8 @@ class Panorama:
 
 
 def main():
-    # DIR = "DanaHallWay1"
-    DIR = "DanaOffice"
+    DIR = "DanaHallWay1"
+    # DIR = "DanaOffice"
 
     pano = Panorama(DIR)
 
@@ -354,12 +384,12 @@ def main():
     output = pano.create_panorama(image1, image2, H)
 
     # Display results
-    corners1_vis = pano.drawCorners(image1, corners1)
-    corners2_vis = pano.drawCorners(image2, corners2)
-    correspondences_vis = pano.drawLines(image1, image2, correspondences)
-    inliers_vis = pano.drawLines(image1, image2, inliers)
-    outliers_vis = pano.drawLines(image1, image2, outliers)
-
+    corners1_vis = pano.draw_corners(image1, corners1)
+    corners2_vis = pano.draw_corners(image2, corners2)
+    correspondences_vis = pano.draw_lines(image1, image2, correspondences)
+    inliers_vis = pano.draw_lines(image1, image2, inliers)
+    outliers_vis = pano.draw_lines(image1, image2, outliers)
+    print(H)
     pano.show_image(
         [
             image1,
