@@ -1,19 +1,21 @@
 import os
-from random import choice, choices, randint
-
-from typing import Tuple
+from random import choices, randint
 
 import cv2
 import numpy as np
 
 
 class Panorama:
-    def __init__(self, path):
+    def __init__(self, path: str) -> None:
+        """Initialize the Panorama class.
+
+        Args:
+            path (str): Path to the folder containing the images.
+        """
         if path == "DanaHallWay1":
             self.harris_thresh = 0.0025
         elif path == "DanaOffice":
             self.harris_thresh = 0.01
-        return
 
     def load_images(self, path: str) -> np.ndarray:
         """Load images from a path.
@@ -34,7 +36,9 @@ class Panorama:
             [cv2.imread(f, 0) for f in files]
         )
 
-    def non_maximum_suppresion(self, image: np.ndarray, window_size: int = 5):
+    def non_maximum_suppresion(
+        self, image: np.ndarray, window_size: int = 5
+    ) -> np.ndarray:
         """Apply non-maximum suppression to a given image
 
         Args:
@@ -42,14 +46,13 @@ class Panorama:
             window_size (int, optional): The window size around each pixel.
         Returns:
             suppressed (np.ndarray): Resulting image after non-maximum suppression.
-        """    
+        """
         suppressed = image.copy()
         global_min = image.min()
         p = window_size // 2
 
         width, height = suppressed.shape
 
-        
         for i in range(width):
             x1 = max(0, i - p)
             x2 = min(width, i + p)
@@ -57,7 +60,7 @@ class Panorama:
                 # Bounds for window around pixel at (i, j)
                 y1 = max(0, j - p)
                 y2 = min(height, j + p)
-                
+
                 # Set pixel value to the global min to exclude it from max
                 value = suppressed[i, j]
                 suppressed[i, j] = global_min
@@ -66,7 +69,7 @@ class Panorama:
                 local_max = suppressed[x1:x2, y1:y2].max()
                 if value > local_max:
                     suppressed[i, j] = value
-                    
+
                 # Else keep it is global minimum
         return suppressed
 
@@ -288,7 +291,9 @@ class Panorama:
         _, final = stitcher.stitch((copy1, copy2))
         return final
 
-    def embed_image(self, embed_image: np.ndarray, base_image: np.ndarray):
+    def embed_image(
+        self, embed_image: np.ndarray, base_image: np.ndarray
+    ) -> np.ndarray:
         """Embeds an image into a given base image.
 
         Args:
@@ -308,13 +313,17 @@ class Panorama:
         embed_width, embed_height, _ = embed_image.shape
 
         # Clockwise starting from top left corner
-        embed_image_corners = np.array([(0, 0), (embed_width, 0), (embed_width, embed_height), (0, embed_height)])
-        
+        embed_image_corners = np.array(
+            [(0, 0), (embed_width, 0), (embed_width, embed_height), (0, embed_height)]
+        )
+
         # Calculate homography matrix
         H = self.homography(embed_image_corners, region)
 
         # Warp the image into the user selected region using the homography matrix
-        embed_image_isolated = cv2.warpPerspective(embed_image, H, (base_height, base_width))
+        embed_image_isolated = cv2.warpPerspective(
+            embed_image, H, (base_height, base_width)
+        )
 
         # Create a mask of the user selected region
         fill_mask = np.zeros(base_image.shape).astype("uint8")
@@ -325,10 +334,12 @@ class Panorama:
 
         # Add the base image and the isolated embed image
         composite_image = base_image_with_region + embed_image_isolated
-        
+
         return composite_image
 
-    def mouse_callback(self, event: int, x: int, y: int, flags: int, param: dict):
+    def mouse_callback(
+        self, event: int, x: int, y: int, flags: int, param: dict
+    ) -> None:
         """Callback function for mouse events used when obtaining the user selected region for embedding an image.
 
         Args:
@@ -341,19 +352,19 @@ class Panorama:
 
         # Handle when the mouse is clicked
         if event == cv2.EVENT_LBUTTONDOWN:
-            # Get image and corners by reference\
+            # Get image and corners by reference
             base_image = param["image"]
             corners = param["corners"]
             corners.append([x, y])
             # Draw square centered around click
             p = 5
-            start_point = (x - p, y - p) # Top left corner
-            end_point = (x + p, y + p) # Bottom right corner
+            start_point = (x - p, y - p)  # Top left corner
+            end_point = (x + p, y + p)  # Bottom right corner
             color = (0, 0, 255)
             thickness = 2
             cv2.rectangle(base_image, start_point, end_point, color, thickness)
 
-    def get_user_region(self, base_image: np.ndarray):
+    def get_user_region(self, base_image: np.ndarray) -> list:
         """Get the corners of the region to embed the image into from the user using mouse click on the base image.
 
         Args:
@@ -444,11 +455,11 @@ class Panorama:
             cv2.imwrite(f"results/{fname}.jpg", image)
 
 
-
 def main():
+    """Main function to run the Panorama class."""
     # The directory to use two images from to create a mosaic
-    DIR = "DanaHallWay1"
-    # DIR = "DanaOffice"
+    # DIR = "DanaHallWay1"
+    DIR = "DanaOffice"
     pano = Panorama(DIR)
 
     # Load images
@@ -529,6 +540,7 @@ def main():
 
 
 def extra_credit():
+    """Extra credit function that embeds an image into another image."""
     # The directory to pull an image from to use as the base image
     DIR = "DanaHallWay1"
     # DIR = "DanaOffice"
@@ -540,6 +552,7 @@ def extra_credit():
     embed_images, _ = pano.load_images("ec")
 
     embed_image = embed_images[0]
+    # embed_image2 = embed_images[1]
     base_image = col[0]
 
     # Warp an image into a region in the second image
@@ -550,6 +563,7 @@ def extra_credit():
 
     # Save Results
     pano.save_image([output], ["ExtraCredit_output"])
+
 
 if __name__ == "__main__":
     main()
