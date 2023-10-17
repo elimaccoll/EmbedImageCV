@@ -548,12 +548,12 @@ def extra_credit():
     pano = Panorama(DIR)
 
     # Load images
-    col, _ = pano.load_images(DIR)
+    base_images, _ = pano.load_images("base")
     embed_images, _ = pano.load_images("ec")
 
     embed_image = embed_images[0]
     # embed_image2 = embed_images[1]
-    base_image = col[0]
+    base_image = base_images[0]
 
     # Warp an image into a region in the second image
     output = pano.embed_image(embed_image, base_image)
@@ -566,5 +566,5 @@ def extra_credit():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
     extra_credit()
