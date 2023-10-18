@@ -1,4 +1,4 @@
-# Image Mosaicing
+# Image Embedding
 
 Imaged embedding program. Originally part of an image mosaicing project for a Computer Vision course (EECE5639).
 
