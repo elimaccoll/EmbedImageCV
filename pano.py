@@ -549,7 +549,7 @@ def extra_credit():
 
     # Load images
     base_images, _ = pano.load_images("base")
-    embed_images, _ = pano.load_images("ec")
+    embed_images, _ = pano.load_images("embed")
 
     embed_image = embed_images[0]
     # embed_image2 = embed_images[1]
