@@ -1,13 +1,13 @@
 # Image Mosaicing
 
-Image mosaicing project for a Computer Vision course (EECE5639)
+Imaged embedding program. Originally part of an image mosaicing project for a Computer Vision course (EECE5639).
 
 ## Usage
 
-Install dependencies and run:
+Install dependencies and run!
 
 ```python
-python pano.py
-```
+pip install -r requirements.txt
 
-The directory for the images being used can be changed in the main method.
+python embed.py
+```
